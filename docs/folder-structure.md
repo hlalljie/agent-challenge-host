@@ -10,7 +10,7 @@ Paths from the repository root.
 
 ## `infra/` — Terraform
 
-Terraform for the CloudFront site: S3, the server Lambda, the image and revalidation functions, and the tag table. `infra/publish.sh` builds the app and applies. State stays on this machine. Steps are in [deploy](runbooks/deploy.md).
+Terraform for the CloudFront site: S3, the server Lambda, the image and revalidation functions, and the tag table. `infra/publish.sh` builds the app and applies. State is in S3. Steps are in [deploy](runbooks/deploy.md).
 
 ## `tests/` — Tests
 

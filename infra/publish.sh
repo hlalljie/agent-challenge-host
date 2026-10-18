@@ -57,26 +57,6 @@ rm -f infra/.build/server.zip infra/.build/image.zip infra/.build/revalidate.zip
 terraform -chdir=infra init -input=false
 terraform -chdir=infra apply -input=false -auto-approve
 
-if [[ -f .env ]]; then
-  SECRET_ID=$(terraform -chdir=infra output -raw gemini_secret_id) node --input-type=module <<'EOF'
-import { readFileSync, writeFileSync } from "node:fs";
-
-const line = readFileSync(".env", "utf8")
-  .split("\n")
-  .find((entry) => entry.startsWith("GEMINI_API_KEY="));
-const key = line?.slice("GEMINI_API_KEY=".length).trim().replace(/^["']|["']$/g, "");
-if (!key || !process.env.SECRET_ID) process.exit(0);
-writeFileSync(
-  "infra/.build/gemini-secret.json",
-  JSON.stringify({ SecretId: process.env.SECRET_ID, SecretString: key }),
-);
-EOF
-  if [[ -f infra/.build/gemini-secret.json ]]; then
-    aws secretsmanager put-secret-value --cli-input-json file://infra/.build/gemini-secret.json >/dev/null
-    rm -f infra/.build/gemini-secret.json
-  fi
-fi
-
 bucket=$(terraform -chdir=infra output -raw bucket_name)
 table=$(terraform -chdir=infra output -raw table_name)
 

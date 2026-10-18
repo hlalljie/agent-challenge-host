@@ -11,7 +11,8 @@
 - **OpenNext on Lambda, S3, and CloudFront's default domain** — no domain to buy. The Next server is a Lambda, static files are on S3, CloudFront serves its own hostname. (challenge-host/D6)
 - **OpenCode Zen is the inference API** — the qualifier calls model `big-pickle` over HTTP. The OpenCode CLI is not the runner. (challenge-host/D7) — superseded by (aws-opencode-setup/D5)
 - **Gemini Flash-Lite is the qualifier model** — `gemini-3.5-flash-lite` with the owner's API key. The small Flash model needs a precise instruction. (aws-opencode-setup/D5) — the local-key half is superseded by (aws-opencode-setup/D6)
-- **The live Gemini key is in Secrets Manager** — the Lambda reads it there. The laptop `.env` is for local runs. (aws-opencode-setup/D6)
+- **The live Gemini key is in Secrets Manager** — the Lambda reads it there. The laptop `.env` is for local runs. (aws-opencode-setup/D6) — the copy-on-publish half is superseded by (aws-opencode-setup/D7)
+- **Terraform state is in S3** — publish does not write the Gemini secret. The key is set once in Secrets Manager. (aws-opencode-setup/D7)
 
 ## Challenges
 

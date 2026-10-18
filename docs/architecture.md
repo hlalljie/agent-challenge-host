@@ -11,8 +11,10 @@ A Next.js qualifier on CloudFront, with the lesson on the same page. The visitor
 - **Qualifier page** — owns the challenge, the form, and the lesson. It must not call a model or hold a secret. See [folder structure](folder-structure.md).
 - **Runner** — owns one run and the pass rule. It calls Gemini Flash-Lite unless `RUNNER=stub`. Locally the key is `GEMINI_API_KEY`. On the Lambda the key is read from Secrets Manager. A missing key or a failed call is a fail, and the stub does not run in its place.
 - **CloudFront** — the public site, on CloudFront's own hostname.
-- **Server Lambda** — the Next.js server, including the qualifier.
-- **S3** — static files and the render cache. The cache is not public.
+- **Server Lambda** — `challenge-host`. The Next.js server. The qualifier's server action, including the Gemini call, runs here.
+- **Image Lambda** — `challenge-host-image`. Serves `/_next/image` only. It does not run the qualifier.
+- **Revalidation Lambda** — `challenge-host-revalidation`. OpenNext uses it to refresh a cached page from a queue. It does not run the qualifier.
+- **S3** — static files and the render cache. The cache is not public. Terraform state is a separate bucket.
 
 ## Flows
 
