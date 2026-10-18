@@ -1,6 +1,6 @@
 "use server"
 
-import { runStub } from "@/lib/runner"
+import { runAttempt } from "@/lib/runner"
 
 export type AttemptState = {
   outcome: "pass" | "fail" | "empty"
@@ -16,7 +16,7 @@ export async function runQualifier(
     return { outcome: "empty", reply: "" }
   }
 
-  const run = await runStub(instruction)
+  const run = await runAttempt(instruction)
   return {
     outcome: run.passed ? "pass" : "fail",
     reply: run.reply,

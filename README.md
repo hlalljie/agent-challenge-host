@@ -11,9 +11,14 @@ pnpm install
 pnpm dev
 ```
 
+`pnpm dev` calls Gemini with `GEMINI_API_KEY` from `.env`. The live site reads that key from Secrets Manager. To grade locally without calling Gemini, start with `RUNNER=stub pnpm dev`.
+
 Then open http://localhost:3000.
 
+Publishing to CloudFront is in [docs/runbooks/deploy.md](docs/runbooks/deploy.md).
+
 ```bash
+pnpm test
 pnpm lint
 pnpm build
 ```

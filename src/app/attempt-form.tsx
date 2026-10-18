@@ -3,9 +3,16 @@
 import { useActionState, useState } from "react"
 import { runQualifier, type AttemptState } from "./actions"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 
-export function AttemptForm() {
+export function Challenge() {
   const [instruction, setInstruction] = useState("")
   const [state, action, pending] = useActionState<AttemptState | null, FormData>(
     runQualifier,
@@ -13,34 +20,49 @@ export function AttemptForm() {
   )
 
   return (
-    <form action={action} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <label htmlFor="instruction" className="text-sm font-medium">
-          Your instruction
-        </label>
-        <Textarea
-          id="instruction"
-          name="instruction"
-          rows={5}
-          required
-          placeholder="One instruction. One reply."
-          disabled={pending}
-          value={instruction}
-          onChange={(event) => setInstruction(event.target.value)}
-        />
-      </div>
-      <Button type="submit" size="lg" disabled={pending}>
-        {pending ? "Running..." : "Run attempt"}
-      </Button>
-      <Result state={state} />
-    </form>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h1>Qualifier</h1>
+          </CardTitle>
+          <CardDescription>
+            Sample challenge. Write one instruction for the agent. You pass if its reply is
+            exactly the word ready.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={action} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="instruction" className="text-sm font-medium">
+                Your instruction
+              </label>
+              <Textarea
+                id="instruction"
+                name="instruction"
+                rows={5}
+                required
+                placeholder="One instruction. One reply."
+                disabled={pending}
+                value={instruction}
+                onChange={(event) => setInstruction(event.target.value)}
+              />
+            </div>
+            <Button type="submit" size="lg" disabled={pending}>
+              {pending ? "Running..." : "Run attempt"}
+            </Button>
+            <Result state={state} />
+          </form>
+        </CardContent>
+      </Card>
+      <Lesson outcome={state?.outcome ?? null} />
+    </>
   )
 }
 
 function Result({ state }: { state: AttemptState | null }) {
-  if (!state) return null
-
-  if (state.outcome === "empty") {
+  if (!state || state.outcome === "empty") {
+    if (!state) return null
     return (
       <p className="text-sm text-destructive" role="status">
         Write an instruction, then run it.
@@ -60,16 +82,48 @@ function Result({ state }: { state: AttemptState | null }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 text-sm" role="status">
-      <p className="font-medium">Not yet. Read this, then try again.</p>
+    <div className="flex flex-col gap-2 text-sm" role="status">
+      <p className="font-medium">
+        Not yet.{" "}
+        <a href="#lesson" className="underline underline-offset-4">
+          Read the lesson
+        </a>
+        , then try again.
+      </p>
       <p className="text-muted-foreground">
         Reply: <span className="font-mono text-foreground">{state.reply}</span>
       </p>
-      <ol className="flex list-decimal flex-col gap-2 pl-5 text-muted-foreground">
-        <li>A single shot is one instruction and one reply. There is no second turn.</li>
-        <li>Name the exact word the reply must be, and say that nothing else may be included.</li>
-        <li>Run the attempt again.</li>
-      </ol>
     </div>
+  )
+}
+
+function Lesson({ outcome }: { outcome: AttemptState["outcome"] | null }) {
+  const note =
+    outcome === "pass"
+      ? "You passed, so you can skip this."
+      : outcome === "fail"
+        ? "Read this, then try the qualifier again."
+        : "Read this if the qualifier does not pass."
+
+  return (
+    <Card id="lesson">
+      <CardHeader>
+        <CardTitle>
+          <h2>Lesson</h2>
+        </CardTitle>
+        <CardDescription>{note}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ol className="flex list-decimal flex-col gap-3 pl-5 text-sm text-muted-foreground">
+          <li>A single shot is one instruction and one reply. There is no second turn.</li>
+          <li>
+            Name the exact reply. For this qualifier, that reply is the word{" "}
+            <span className="font-mono text-foreground">ready</span>.
+          </li>
+          <li>Say that the reply must include nothing else. An extra sentence still fails.</li>
+          <li>Run the attempt again.</li>
+        </ol>
+      </CardContent>
+    </Card>
   )
 }
