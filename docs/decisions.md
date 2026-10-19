@@ -19,3 +19,4 @@
 - **Stub the runner until an OpenCode key exists** — the app has to work before anyone signs in. (challenge-host/D4) — superseded by (aws-opencode-setup/D4)
 - **`RUNNER=stub` is the local grader** — OpenCode is the default, and free models need no key. The stub is opt-in so a run without the network still grades. (aws-opencode-setup/D4) — the model half is superseded by (aws-opencode-setup/D5)
 - **One sample qualifier first** — the real prompt is not chosen yet. (challenge-host/D5)
+- **Attempts are rows in DynamoDB** — a Step Function runs the live attempt. The owner reads them in DynamoDB. (attempt-log/D1)

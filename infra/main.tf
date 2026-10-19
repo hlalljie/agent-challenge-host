@@ -119,6 +119,11 @@ resource "aws_iam_role_policy" "server" {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
         Resource = aws_secretsmanager_secret.gemini.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["states:StartSyncExecution"]
+        Resource = aws_sfn_state_machine.attempt.arn
       }
     ]
   })
@@ -130,7 +135,7 @@ resource "aws_lambda_function" "server" {
   filename         = "${path.module}/.build/server.zip"
   source_code_hash = filebase64sha256("${path.module}/.build/server.zip")
   handler          = "index.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs24.x"
   architectures    = ["arm64"]
   memory_size      = 1024
   timeout          = 60
@@ -145,6 +150,7 @@ resource "aws_lambda_function" "server" {
       REVALIDATION_QUEUE_REGION = var.aws_region
       OPEN_NEXT_BUILD_ID        = local.build_id
       GEMINI_SECRET_ID          = aws_secretsmanager_secret.gemini.arn
+      ATTEMPT_STATE_MACHINE_ARN = aws_sfn_state_machine.attempt.arn
     }
   }
 }
@@ -206,7 +212,7 @@ resource "aws_lambda_function" "image" {
   filename         = "${path.module}/.build/image.zip"
   source_code_hash = filebase64sha256("${path.module}/.build/image.zip")
   handler          = "index.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs24.x"
   architectures    = ["arm64"]
   memory_size      = 1536
   timeout          = 30
@@ -264,7 +270,7 @@ resource "aws_lambda_function" "revalidation" {
   filename         = "${path.module}/.build/revalidate.zip"
   source_code_hash = filebase64sha256("${path.module}/.build/revalidate.zip")
   handler          = "index.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs24.x"
   architectures    = ["arm64"]
   memory_size      = 256
   timeout          = 30
@@ -292,6 +298,10 @@ resource "aws_cloudfront_function" "host" {
     function handler(event) {
       var request = event.request;
       request.headers["x-forwarded-host"] = request.headers.host;
+      if (event.viewer && event.viewer.ip) {
+        request.headers["x-viewer-ip"] = { value: event.viewer.ip };
+        request.headers["cloudfront-viewer-address"] = { value: event.viewer.ip };
+      }
       return request;
     }
   EOF

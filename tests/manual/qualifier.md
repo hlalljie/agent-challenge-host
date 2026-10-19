@@ -13,7 +13,7 @@ Incomplete = do not run steps.
 ## Preconditions
 
 - Dependencies are installed (`pnpm install`).
-- Port 3000 is free. The stub grades locally and does not call Gemini.
+- Port 3000 is free. The stub grades locally and does not call Gemini or store an attempt.
 
 ## Vitest prerequisite (optional)
 

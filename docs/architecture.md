@@ -22,14 +22,14 @@ A Next.js qualifier on CloudFront, with the lesson on the same page. The visitor
 
 1. The qualifier page submits the instruction to the server action.
 2. An empty instruction returns immediately and asks for text.
-3. Otherwise the runner returns a reply plus pass or fail. A trimmed reply of exactly `ready` passes. If the Gemini call fails, the attempt fails.
-4. Pass tells the visitor they can skip the lesson. Fail shows the reply and points at the lesson on the same page.
+3. On a live run the server starts a Step Function and waits. The workflow stores the submission, calls Gemini, and checks that the trimmed reply is exactly `ready`. A stub run grades on the machine and stores nothing.
+4. Pass tells the visitor they can skip the lesson. Fail shows the reply and points at the lesson on the same page. A refresh clears the result on the page. The live row stays in DynamoDB.
 
 ## Constraints
 
 - The browser never receives a model key. Local runs use `GEMINI_API_KEY`. The Lambda reads it from Secrets Manager.
-- One instruction, one reply. The runner does not keep a session.
-- Attempts are not stored. A refresh clears the result.
+- One instruction, one reply. The runner does not keep a model session. The browser keeps an attempt session cookie so later tries group together.
+- A live attempt is stored. A stub attempt is not. A refresh clears the result on the page.
 - `RUNNER=stub` does not reach the network.
 - The server and image function URLs are public. The address to share is the CloudFront hostname.
 - The qualifier model is `gemini-3.5-flash-lite`. A hosted attempt reads the key from Secrets Manager.

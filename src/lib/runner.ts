@@ -3,6 +3,8 @@ import {
   SecretsManagerClient,
 } from "@aws-sdk/client-secrets-manager"
 
+import { replyPasses } from "./pass"
+
 export type StubRun = {
   reply: string
   passed: boolean
@@ -61,7 +63,7 @@ export async function runAttempt(
     }
 
     const reply = content.trim()
-    return { reply, passed: reply === "ready" }
+    return { reply, passed: replyPasses(reply) }
   } catch {
     return failedAttempt()
   }
@@ -94,7 +96,7 @@ function failedAttempt(): { reply: string; passed: boolean } {
 export async function runStub(instruction: string): Promise<StubRun> {
   await new Promise((resolve) => setTimeout(resolve, 400))
   const reply = replyFor(instruction)
-  return { reply, passed: reply === "ready" }
+  return { reply, passed: replyPasses(reply) }
 }
 
 function replyFor(instruction: string): string {

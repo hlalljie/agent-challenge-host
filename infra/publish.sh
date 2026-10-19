@@ -48,8 +48,10 @@ for (const entry of readdirSync(pnpm)) {
 }
 EOF
 
-mkdir -p infra/.build
-rm -f infra/.build/server.zip infra/.build/image.zip infra/.build/revalidate.zip
+mkdir -p infra/.build/grade
+rm -f infra/.build/server.zip infra/.build/image.zip infra/.build/revalidate.zip infra/.build/grade.zip
+node_modules/.pnpm/esbuild@0.28.2/node_modules/esbuild/bin/esbuild src/attempts/grade.ts --bundle --platform=node --target=node24 --format=cjs --outfile=infra/.build/grade/index.js
+(cd infra/.build/grade && zip -qr "$root/infra/.build/grade.zip" index.js)
 (cd .open-next/server-functions/default && zip -qr "$root/infra/.build/server.zip" .)
 (cd .open-next/image-optimization-function && zip -qr "$root/infra/.build/image.zip" .)
 (cd .open-next/revalidation-function && zip -qr "$root/infra/.build/revalidate.zip" .)

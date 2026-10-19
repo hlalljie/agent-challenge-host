@@ -1,6 +1,10 @@
 "use server"
 
-import { runAttempt } from "@/lib/runner"
+import { cookies, headers } from "next/headers"
+import { runTrackedAttempt } from "@/lib/attempt"
+import { viewerIp } from "@/lib/viewer-ip"
+
+const sessionCookie = "attempt_session"
 
 export type AttemptState = {
   outcome: "pass" | "fail" | "empty"
@@ -16,7 +20,25 @@ export async function runQualifier(
     return { outcome: "empty", reply: "" }
   }
 
-  const run = await runAttempt(instruction)
+  const jar = await cookies()
+  let sessionId = jar.get(sessionCookie)?.value
+  if (!sessionId) {
+    sessionId = crypto.randomUUID()
+    jar.set(sessionCookie, sessionId, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    })
+  }
+
+  const headerList = await headers()
+  const ip = viewerIp(
+    headerList.get("x-viewer-ip") ??
+      headerList.get("cloudfront-viewer-address") ??
+      headerList.get("x-forwarded-for"),
+  )
+  const run = await runTrackedAttempt({ instruction, sessionId, ip })
   return {
     outcome: run.passed ? "pass" : "fail",
     reply: run.reply,
