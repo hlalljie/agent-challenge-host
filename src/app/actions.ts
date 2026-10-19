@@ -1,14 +1,18 @@
 "use server"
 
 import { cookies, headers } from "next/headers"
-import { runTrackedAttempt } from "@/lib/attempt"
+import { runTrackedAttempt, type GroupResult } from "@/lib/attempt"
 import { viewerIp } from "@/lib/viewer-ip"
+import { sampleChallenge } from "@/lib/challenge"
 
 const sessionCookie = "attempt_session"
 
 export type AttemptState = {
   outcome: "pass" | "fail" | "empty"
   reply: string
+  stars: number
+  groups: GroupResult[]
+  targetId: string
 }
 
 export async function runQualifier(
@@ -16,8 +20,10 @@ export async function runQualifier(
   formData: FormData,
 ): Promise<AttemptState> {
   const instruction = String(formData.get("instruction") ?? "").trim()
+  const requested = String(formData.get("target") ?? sampleChallenge.id)
+  const targetId = knownTarget(requested)
   if (!instruction) {
-    return { outcome: "empty", reply: "" }
+    return { outcome: "empty", reply: "", stars: 0, groups: [], targetId }
   }
 
   const jar = await cookies()
@@ -38,9 +44,18 @@ export async function runQualifier(
       headerList.get("cloudfront-viewer-address") ??
       headerList.get("x-forwarded-for"),
   )
-  const run = await runTrackedAttempt({ instruction, sessionId, ip })
+  const run = await runTrackedAttempt({ instruction, sessionId, ip, targetId })
   return {
     outcome: run.passed ? "pass" : "fail",
     reply: run.reply,
+    stars: run.stars,
+    groups: run.groups,
+    targetId,
   }
+}
+
+function knownTarget(id: string): string {
+  if (id === sampleChallenge.id) return id
+  if (sampleChallenge.lessons.some((lesson) => lesson.id === id)) return id
+  return sampleChallenge.id
 }

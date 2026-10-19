@@ -58,6 +58,11 @@ resource "aws_iam_role_policy" "grade" {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
         Resource = aws_secretsmanager_secret.gemini.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:Query"]
+        Resource = aws_dynamodb_table.attempts.arn
       }
     ]
   })
@@ -77,6 +82,7 @@ resource "aws_lambda_function" "grade" {
   environment {
     variables = {
       GEMINI_SECRET_ID = aws_secretsmanager_secret.gemini.arn
+      ATTEMPTS_TABLE   = aws_dynamodb_table.attempts.name
     }
   }
 }
@@ -162,6 +168,7 @@ resource "aws_sfn_state_machine" "attempt" {
             attemptId   = { "S.$" = "$.attemptId" }
             ip          = { "S.$" = "$.ip" }
             instruction = { "S.$" = "$.instruction" }
+            targetId    = { "S.$" = "$.targetId" }
             status      = { S = "pending" }
           }
         }
@@ -175,6 +182,9 @@ resource "aws_sfn_state_machine" "attempt" {
           FunctionName = aws_lambda_function.grade.arn
           Payload = {
             "instruction.$" = "$.instruction"
+            "sessionId.$"   = "$.sessionId"
+            "targetId.$"    = "$.targetId"
+            "groups.$"      = "$.groups"
           }
         }
         ResultSelector = {
@@ -193,7 +203,7 @@ resource "aws_sfn_state_machine" "attempt" {
             sessionId = { "S.$" = "$.sessionId" }
             createdAt = { "S.$" = "$.createdAt" }
           }
-          UpdateExpression = "SET reply = :reply, passed = :passed, #status = :status"
+          UpdateExpression = "SET reply = :reply, passed = :passed, #status = :status, gates = :gates, stars = :stars"
           ExpressionAttributeNames = {
             "#status" = "status"
           }
@@ -201,6 +211,8 @@ resource "aws_sfn_state_machine" "attempt" {
             ":reply"  = { "S.$" = "$.grade.reply" }
             ":passed" = { "BOOL.$" = "$.grade.passed" }
             ":status" = { S = "done" }
+            ":gates"  = { "S.$" = "$.grade.gatesJson" }
+            ":stars"  = { "N.$" = "$.grade.starsText" }
           }
         }
         ResultPath = null

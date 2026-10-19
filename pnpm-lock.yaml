@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: 3.984.0
+        version: 3.984.0
       '@aws-sdk/client-secrets-manager':
         specifier: 3.984.0
         version: 3.984.0

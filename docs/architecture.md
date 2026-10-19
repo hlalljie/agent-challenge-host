@@ -22,8 +22,8 @@ A Next.js qualifier on CloudFront, with the lesson on the same page. The visitor
 
 1. The qualifier page submits the instruction to the server action.
 2. An empty instruction returns immediately and asks for text.
-3. On a live run the server starts a Step Function and waits. The workflow stores the submission, calls Gemini, and checks that the trimmed reply is exactly `ready`. A stub run grades on the machine and stores nothing.
-4. Pass tells the visitor they can skip the lesson. Fail shows the reply and points at the lesson on the same page. A refresh clears the result on the page. The live row stays in DynamoDB.
+3. On a live run the server starts a Step Function and waits. The workflow stores the submission, calls Gemini, and checks the criteria for the open challenge or lesson. A stub run grades on the machine and stores nothing.
+4. Stars on the full challenge are levels the author defined. A lesson shows its checks and has no stars. A refresh clears the result on the page. The live row stays in DynamoDB.
 
 ## Constraints
 
