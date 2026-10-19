@@ -1,6 +1,6 @@
 # Challenge host
 
-A site for agent challenges. The first challenge is a single-shot qualifier: pass it and skip the lesson, or fail it and read a short walkthrough.
+A site for agent challenges. The sample challenge is one instruction and one reply. Stars come from checks the author defines, and each lesson walks through one of those checks.
 
 **Status:** in development
 
