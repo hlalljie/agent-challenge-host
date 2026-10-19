@@ -22,18 +22,11 @@ const shortInstruction: Criterion = {
   max: 12,
 }
 
-const threeInARow: Criterion = {
-  id: "three-in-a-row",
-  type: "streak",
+const repeatReady: Criterion = {
+  id: "repeat-ready",
+  type: "repeat",
   count: 3,
-}
-
-export type Lesson = {
-  id: string
-  title: string
-  rule: string
-  body: string[]
-  criteria: Criterion[]
+  expected: "ready",
 }
 
 export type StarLevel = {
@@ -41,76 +34,141 @@ export type StarLevel = {
   criteria: Criterion[]
 }
 
-export type ChallengeDefinition = {
+export type Challenge = {
   id: string
   title: string
   summary: string
-  stars: StarLevel[]
+  criteria: Criterion[]
+  stars?: StarLevel[]
+}
+
+export type Lesson = {
+  number: number
+  title: string
+  summary: string
+  body: string[]
+  challenge: Challenge
+}
+
+export type Module = {
+  number: number
+  title: string
+  description: string
+  hint: string
+  challenge: Challenge & {
+    navTitle: string
+    navDetail: string
+    detail: string
+    stars: StarLevel[]
+  }
   lessons: Lesson[]
 }
 
-export const sampleChallenge: ChallengeDefinition = {
-  id: "ready",
-  title: "Say ready",
-  summary:
-    "One instruction, one reply. The agent passes a star when every check for that star succeeds.",
-  stars: [
-    { stars: 1, criteria: [exactReady] },
-    { stars: 2, criteria: [exactReady, threeInARow] },
-    { stars: 3, criteria: [exactReady, threeInARow, namesReady, shortInstruction] },
-  ],
+export const sampleModule: Module = {
+  number: 1,
+  title: "Single Shot Prompting",
+  description:
+    "A single shot prompt is a prompt without a conversation that accomplishes a task. Accomplishing tasks with a single shot is a great way to look at the fundamental skills behind prompt engineering. Creating a good single prompt comes down to including all the necessary context, making a precise ask, while leaving no ambiguity.",
+  hint: "If you're feeling confident, try the challenge. Otherwise try out the subchallenges in each lesson to learn the building blocks.",
+  challenge: {
+    id: "ready",
+    navTitle: "Challenge 1: Say Ready in a Single Shot Prompt",
+    navDetail: "Put everything together to complete the challenge",
+    title: "Say ready",
+    summary: 'Prompt the agent to get a response that says "ready" and nothing else.',
+    detail:
+      "To complete this challenge you will need to prompt the agent to get an exact reply while also being very concise in your own explanation.",
+    criteria: [namesReady, exactReady, repeatReady, shortInstruction],
+    stars: [
+      { stars: 1, criteria: [namesReady] },
+      { stars: 2, criteria: [exactReady] },
+      { stars: 3, criteria: [repeatReady, shortInstruction] },
+    ],
+  },
   lessons: [
     {
-      id: "exact",
-      title: "Exact reply",
-      rule: "The reply is only the word ready.",
+      number: 1,
+      title: "Exact Reply",
+      summary: "The reply is only the word ready.",
       body: [
         "A single shot is one instruction and one reply. There is no second turn.",
         "Name the exact reply. For this qualifier, that reply is the word ready.",
       ],
-      criteria: [exactReady],
+      challenge: {
+        id: "exact",
+        title: "Say ready",
+        summary: "One instruction. The reply has to be only the word ready.",
+        criteria: [exactReady],
+      },
     },
     {
-      id: "nothing-else",
-      title: "Nothing else",
-      rule: "An extra sentence still fails.",
+      number: 2,
+      title: "Nothing Else",
+      summary: "An extra sentence still fails.",
       body: [
         "Say that the reply must include nothing else.",
         "If the agent adds a greeting or an offer to help, the check fails.",
       ],
-      criteria: [exactReady],
+      challenge: {
+        id: "nothing-else",
+        title: "Say ready",
+        summary: "One instruction. Ask for ready, and say that the reply should add nothing else.",
+        criteria: [exactReady],
+      },
     },
     {
-      id: "short",
-      title: "Keep it short",
-      rule: "The instruction names ready and stays under 12 words.",
+      number: 3,
+      title: "Keep It Short",
+      summary: "The instruction names ready and stays under 12 words.",
       body: [
         "A shorter instruction is easier to repeat and harder to hide extra demands in.",
         "Name ready, and keep the whole instruction under 12 words.",
       ],
-      criteria: [namesReady, shortInstruction],
+      challenge: {
+        id: "short",
+        title: "Say ready",
+        summary: "One short instruction that names ready.",
+        criteria: [namesReady, shortInstruction],
+      },
     },
   ],
 }
 
+export function challengeFor(targetId: string): Challenge | undefined {
+  if (targetId === sampleModule.challenge.id) return sampleModule.challenge
+  return sampleModule.lessons.find((lesson) => lesson.challenge.id === targetId)?.challenge
+}
+
+export function lessonFor(targetId: string): Lesson | undefined {
+  return sampleModule.lessons.find((lesson) => lesson.challenge.id === targetId)
+}
+
+export function knownTarget(id: string): string {
+  if (challengeFor(id)) return id
+  return sampleModule.challenge.id
+}
+
 export function groupsFor(targetId: string): CheckGroup[] {
-  if (targetId === sampleChallenge.id) {
-    return sampleChallenge.stars.map((star) => ({
+  if (targetId === sampleModule.challenge.id) {
+    return sampleModule.challenge.stars.map((star) => ({
       id: String(star.stars),
       criteria: star.criteria,
     }))
   }
-  const lesson = sampleChallenge.lessons.find((item) => item.id === targetId)
-  if (!lesson) return []
-  return [{ id: lesson.id, criteria: lesson.criteria }]
+  const challenge = challengeFor(targetId)
+  if (!challenge) return []
+  return [{ id: challenge.id, criteria: challenge.criteria }]
 }
 
 export function starsFrom(groups: { id: string; passed: boolean }[]): number {
+  const levels = groups
+    .map((group) => ({ level: Number(group.id), passed: group.passed }))
+    .filter((group) => Number.isInteger(group.level))
+    .sort((a, b) => a.level - b.level)
   let earned = 0
-  for (const group of groups) {
-    const level = Number(group.id)
-    if (!Number.isInteger(level)) continue
-    if (group.passed && level > earned) earned = level
+  for (const group of levels) {
+    if (!group.passed || group.level !== earned + 1) break
+    earned = group.level
   }
   return earned
 }

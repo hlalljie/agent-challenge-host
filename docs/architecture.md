@@ -4,7 +4,7 @@ How the system works now. Current state only; the reasons for choices are in [de
 
 ## Overview
 
-A Next.js qualifier on CloudFront, with the lesson on the same page. The visitor writes a single instruction. The server Lambda calls Gemini Flash-Lite unless `RUNNER=stub`, which grades the instruction locally. A pass says they can skip the lesson. A fail points them at the lesson. Static files and the render cache are on S3. Deploy steps are in [deploy](runbooks/deploy.md).
+A Next.js qualifier on CloudFront. A module teaches one skill. The left side explains the open lesson. The right side is that lesson's challenge, or the module challenge. The visitor writes a single instruction. The server Lambda calls Gemini Flash-Lite unless `RUNNER=stub`, which grades the instruction locally. Static files and the render cache are on S3. Deploy steps are in [deploy](runbooks/deploy.md).
 
 ## Parts
 
@@ -22,8 +22,8 @@ A Next.js qualifier on CloudFront, with the lesson on the same page. The visitor
 
 1. The qualifier page submits the instruction to the server action.
 2. An empty instruction returns immediately and asks for text.
-3. On a live run the server starts a Step Function and waits. The workflow stores the submission, calls Gemini, and checks the criteria for the open challenge or lesson. A stub run grades on the machine and stores nothing.
-4. Stars on the full challenge are levels the author defined. A lesson shows its checks and has no stars. A refresh clears the result on the page. The live row stays in DynamoDB.
+3. On a live run the server starts a Step Function and waits. The workflow stores the submission, calls Gemini, and checks the criteria for the open challenge. A stub run grades on the machine and stores nothing.
+4. Stars belong to the module challenge. A lesson's challenge tests that lesson and has no stars. A refresh clears the result on the page. The live row stays in DynamoDB.
 
 ## Constraints
 

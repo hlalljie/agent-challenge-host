@@ -6,7 +6,7 @@ Paths from the repository root.
 
 - **`src/app/`** — Next.js App Router. The home page is the qualifier and its lesson: `page.tsx`, the attempt form, and the server action.
 - **`src/components/ui/`** — shadcn components (button, card, textarea).
-- **`src/lib/`** — The challenge runner. `runner.ts` calls Gemini Flash-Lite, or grades locally when `RUNNER=stub`.
+- **`src/lib/`** — The module, its lessons, and their challenges live in `challenge.ts`. `runner.ts` calls Gemini Flash-Lite, or grades locally when `RUNNER=stub`.
 
 ## `infra/` — Terraform
 
@@ -32,11 +32,6 @@ Terraform for the CloudFront site: S3, the server Lambda, the image and revalida
 - **`AGENTS.md`** — Next.js guide for coding agents, generated with the app.
 - **`README.md`** — what this project is and how to run it.
 
-## Adding a challenge
+## Adding a module
 
-The home page is the only challenge, and the reference for the next one.
-
-1. `src/app/page.tsx` — the challenge copy
-2. `src/app/attempt-form.tsx` — the form, the pass / fail result, and the lesson
-3. `src/app/actions.ts` — the server action
-4. `src/lib/runner.ts` — the run and the pass rule
+The home page is the only module, and the reference for the next one. A module has lessons, and each lesson has one challenge. The module has one challenge of its own. That copy is in `src/lib/challenge.ts`. The page, the form, and the server action read it.

@@ -1,6 +1,6 @@
 # Challenge host
 
-A site for agent challenges. The sample challenge is one instruction and one reply. Stars come from checks the author defines, and each lesson walks through one of those checks.
+A site for agent challenges. A module teaches one skill. Each lesson explains one part of that skill and has one challenge that tests it. The module also has one challenge that puts the parts together.
 
 **Status:** in development
 

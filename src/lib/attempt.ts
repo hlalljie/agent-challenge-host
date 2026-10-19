@@ -1,6 +1,6 @@
 import { SFNClient, StartSyncExecutionCommand } from "@aws-sdk/client-sfn"
 import { groupsFor, starsFrom } from "./challenge"
-import { evaluateGroup, type CheckGroup, type CriterionResult } from "./criteria"
+import { gradeGroups, repeatCount, type CheckGroup, type CriterionResult } from "./criteria"
 import { runAttempt } from "./runner"
 
 const localHistory = new Map<string, boolean[]>()
@@ -67,28 +67,30 @@ async function gradeLocally(
   input: { instruction: string; sessionId: string; targetId: string },
   groups: CheckGroup[],
 ): Promise<TrackedResult> {
-  const run = await runAttempt(input.instruction)
-  const judged: GroupResult[] = []
+  const runs = await Promise.all(
+    Array.from({ length: repeatCount(groups) }, () => runAttempt(input.instruction)),
+  )
+  const replies = runs.map((run) => run.reply)
+  const history: Record<string, boolean[]> = {}
   for (const group of groups) {
-    const key = `${input.sessionId}:${input.targetId}:${group.id}`
-    const prior = localHistory.get(key) ?? []
-    const evaluated = await evaluateGroup({
-      instruction: input.instruction,
-      reply: run.reply,
-      criteria: group.criteria,
-      priorNonStreakPasses: prior,
-    })
-    localHistory.set(key, [evaluated.nonStreakPassed, ...prior])
-    judged.push({
-      id: group.id,
-      passed: evaluated.results.every((result) => result.passed),
-      criteria: evaluated.results,
-    })
+    history[group.id] = localHistory.get(`${input.sessionId}:${input.targetId}:${group.id}`) ?? []
   }
+  const graded = await gradeGroups({
+    instruction: input.instruction,
+    reply: replies[0] ?? "",
+    replies,
+    groups,
+    history,
+  })
+  for (const [id, passed] of Object.entries(graded.gates)) {
+    const key = `${input.sessionId}:${input.targetId}:${id}`
+    localHistory.set(key, [passed, ...(history[id] ?? [])])
+  }
+  const judged: GroupResult[] = graded.groups
   const stars = starsFrom(judged)
   const lesson = groups.length === 1 && !Number.isInteger(Number(groups[0]?.id))
   return {
-    reply: run.reply,
+    reply: replies[0] ?? "",
     passed: lesson ? judged[0]?.passed === true : stars >= 1,
     stars,
     groups: judged,

@@ -25,9 +25,9 @@ pnpm exec vitest run tests/lib/runner.test.ts
 
 ## Procedure
 
-1. Open `http://localhost:3000` before running an attempt. Confirm the left side lists Full challenge and the lessons Exact reply, Nothing else, and Keep it short.
+1. Open `http://localhost:3000` before running an attempt. Confirm the left side lists Challenge 1: Say Ready in a Single Shot Prompt, Lesson 1 Exact Reply, Lesson 2 Nothing Else, and Lesson 3 Keep It Short.
 2. Type `hello` into Your instruction and run the attempt. Confirm 1 star stays unfilled and the reply is not `ready`.
-3. Open Exact reply, replace the instruction with `Reply with exactly ready and nothing else.`, and run the attempt. Confirm the Reply is only ready check says Pass and the reply is `ready`.
+3. Open Lesson 1 Exact Reply, replace the instruction with `Reply with exactly ready and nothing else.`, and run the attempt. Confirm the Reply is only ready check says Pass and the reply is `ready`.
 
 ## Pass criteria
 

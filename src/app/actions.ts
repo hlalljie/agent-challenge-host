@@ -3,7 +3,7 @@
 import { cookies, headers } from "next/headers"
 import { runTrackedAttempt, type GroupResult } from "@/lib/attempt"
 import { viewerIp } from "@/lib/viewer-ip"
-import { sampleChallenge } from "@/lib/challenge"
+import { knownTarget, sampleModule } from "@/lib/challenge"
 
 const sessionCookie = "attempt_session"
 
@@ -20,7 +20,7 @@ export async function runQualifier(
   formData: FormData,
 ): Promise<AttemptState> {
   const instruction = String(formData.get("instruction") ?? "").trim()
-  const requested = String(formData.get("target") ?? sampleChallenge.id)
+  const requested = String(formData.get("target") ?? sampleModule.challenge.id)
   const targetId = knownTarget(requested)
   if (!instruction) {
     return { outcome: "empty", reply: "", stars: 0, groups: [], targetId }
@@ -52,10 +52,4 @@ export async function runQualifier(
     groups: run.groups,
     targetId,
   }
-}
-
-function knownTarget(id: string): string {
-  if (id === sampleChallenge.id) return id
-  if (sampleChallenge.lessons.some((lesson) => lesson.id === id)) return id
-  return sampleChallenge.id
 }

@@ -1,5 +1,5 @@
 import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb"
-import { evaluateGroup, type CheckGroup } from "../lib/criteria"
+import { gradeGroups, repeatCount, type CheckGroup } from "../lib/criteria"
 import { starsFrom } from "../lib/challenge"
 import { runAttempt } from "../lib/runner"
 
@@ -12,34 +12,32 @@ export async function handler(event: {
   groups?: string
 }) {
   const instruction = String(event.instruction ?? "")
-  const run = await runAttempt(instruction)
   const groups = parseGroups(event.groups)
+  const runs = await Promise.all(
+    Array.from({ length: repeatCount(groups) }, () => runAttempt(instruction)),
+  )
+  const replies = runs.map((run) => run.reply)
   const history = await priorGates(event.sessionId, event.targetId)
-  const judged = []
-  const gates: Record<string, boolean> = {}
-
-  for (const group of groups) {
-    const evaluated = await evaluateGroup({
-      instruction,
-      reply: run.reply,
-      criteria: group.criteria,
-      priorNonStreakPasses: history[group.id] ?? [],
-      judge: async (prompt) => {
-        const verdict = await runAttempt(
-          `${prompt}\n\nInstruction:\n${instruction}\n\nReply:\n${run.reply}\n\nReply with exactly pass or fail.`,
-        )
-        return verdict.reply.trim().toLowerCase() === "pass"
-      },
-    })
-    const passed = evaluated.results.every((result) => result.passed)
-    gates[group.id] = evaluated.nonStreakPassed
-    judged.push({ id: group.id, passed, criteria: evaluated.results })
-  }
+  const graded = await gradeGroups({
+    instruction,
+    reply: replies[0] ?? "",
+    replies,
+    groups,
+    history,
+    judge: async (prompt) => {
+      const verdict = await runAttempt(
+        `${prompt}\n\nInstruction:\n${instruction}\n\nReply:\n${replies[0] ?? ""}\n\nReply with exactly pass or fail.`,
+      )
+      return verdict.reply.trim().toLowerCase() === "pass"
+    },
+  })
+  const judged = graded.groups
+  const gates = graded.gates
 
   const stars = starsFrom(judged)
   const lesson = groups.length === 1 && !Number.isInteger(Number(groups[0]?.id))
   return {
-    reply: run.reply,
+    reply: replies[0] ?? "",
     passed: lesson ? judged[0]?.passed === true : stars >= 1,
     stars,
     groups: judged,
