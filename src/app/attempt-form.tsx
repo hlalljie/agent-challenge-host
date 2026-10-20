@@ -1,53 +1,145 @@
 "use client"
 
-import { useActionState, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
-import { runQualifier, type AttemptState } from "./actions"
-import { lessonFor, sampleModule } from "@/lib/challenge"
-import { criterionLabel } from "@/lib/criteria"
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
+import { attemptUsesWorkflow, gradeQualifier, runOneQualifier, runQualifier, type AttemptState } from "./actions"
+import { groupsFor, lessonFor, sampleModule } from "@/lib/challenge"
+import { criterionLabel, repeatCount } from "@/lib/criteria"
 
-type ChatMessage = {
-  role: "user" | "assistant"
-  text: string
-  targetId: string
+type AttemptRecord = {
+  runId: number
+  prompt: string
+  replies: string[]
+  pending: boolean[]
+  stars?: number
+  graded: AttemptState | null
 }
 
 export function Challenge() {
   const [instruction, setInstruction] = useState("")
   const [target, setTarget] = useState(sampleModule.challenge.id)
   const [sidebarRatio, setSidebarRatio] = useState(0.5)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [history, setHistory] = useState<Record<string, AttemptRecord[]>>({})
+  const [cursor, setCursor] = useState<Record<string, number>>({})
   const [scores, setScores] = useState<Record<string, number>>({})
-  const [state, action, pending] = useActionState<AttemptState | null, FormData>(
-    runQualifier,
-    null,
-  )
-  const seen = useRef<AttemptState | null>(null)
+  const [running, setRunning] = useState(false)
+  const generation = useRef(0)
   const thread = useRef<HTMLDivElement>(null)
-  const shown = state?.targetId === target ? state : null
+  const attemptRow = useRef<HTMLDivElement>(null)
+  const attempts = history[target] ?? []
+  const cursorIndex = attempts.length === 0 ? 0 : Math.min(cursor[target] ?? attempts.length - 1, attempts.length - 1)
+  const current = attempts[cursorIndex]
+  const shown = current?.graded ?? null
   const lesson = lessonFor(target)
   const activeChallenge = lesson?.challenge ?? sampleModule.challenge
-  const visible = messages.filter((message) => message.targetId === target)
-
-  useEffect(() => {
-    if (!state || state === seen.current || state.outcome === "empty") return
-    seen.current = state
-    setMessages((current) => [
-      ...current,
-      { role: "assistant", text: state.reply, targetId: state.targetId },
-    ])
-    setScores((current) => ({ ...current, [state.targetId]: progressRatio(state) }))
-  }, [state])
 
   useEffect(() => {
     thread.current?.scrollTo({ top: thread.current.scrollHeight })
-  }, [visible.length, pending])
+  }, [attempts.length, cursorIndex, running])
 
-  function submit(formData: FormData) {
+  useLayoutEffect(() => {
+    const scroller = attemptRow.current
+    if (!scroller) return
+    const selected = scroller.querySelector<HTMLElement>('[data-selected="true"]')
+    if (!selected) return
+    // Attempt 1's top runs to the panel edge, so it has to stay pinned there.
+    if (selected === scroller.querySelector("button")) {
+      scroller.scrollLeft = 0
+      return
+    }
+    // Keep the side curves on screen, and keep the end tabs clear of the panel corners.
+    const gutter = 40
+    const left = selected.offsetLeft
+    const right = left + selected.offsetWidth
+    const viewLeft = scroller.scrollLeft
+    const viewRight = viewLeft + scroller.clientWidth
+    if (left - gutter < viewLeft) scroller.scrollLeft = Math.max(0, left - gutter)
+    else if (right + gutter > viewRight) scroller.scrollLeft = right + gutter - scroller.clientWidth
+  }, [cursorIndex, attempts.length])
+
+  useEffect(() => {
+    const row = attemptRow.current
+    if (!row) return
+    const onWheel = (event: WheelEvent) => {
+      if (row.scrollWidth <= row.clientWidth) return
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+      if (delta === 0) return
+      event.preventDefault()
+      row.scrollLeft += delta
+    }
+    row.addEventListener("wheel", onWheel, { passive: false })
+    return () => row.removeEventListener("wheel", onWheel)
+  }, [attempts.length])
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     const text = instruction.trim()
-    if (!text) return
-    setMessages((current) => [...current, { role: "user", text, targetId: target }])
+    if (!text || running) return
+    const field = event.currentTarget.elements.namedItem("instruction")
+    if (field instanceof HTMLTextAreaElement) field.style.height = ""
+    const targetId = target
+    const count = repeatCount(groupsFor(targetId))
+    const runId = generation.current + 1
+    generation.current = runId
+    const replies = Array.from({ length: count }, () => "")
+    const slots = Array.from({ length: count }, () => true)
+    setRunning(true)
     setInstruction("")
-    return action(formData)
+    setHistory((current) => {
+      const list = current[targetId] ?? []
+      return {
+        ...current,
+        [targetId]: [
+          ...list,
+          { runId, prompt: text, replies: replies.slice(), pending: slots.slice(), graded: null },
+        ],
+      }
+    })
+    setCursor((current) => ({ ...current, [targetId]: history[targetId]?.length ?? 0 }))
+
+    let ticket = 0
+    void (async () => {
+      try {
+        if (await attemptUsesWorkflow()) {
+          if (generation.current !== runId) return
+          const formData = new FormData()
+          formData.set("instruction", text)
+          formData.set("target", targetId)
+          const graded = await runQualifier(null, formData)
+          if (generation.current !== runId) return
+          publish(graded, graded.replies.map(() => false))
+          return
+        }
+
+        await Promise.all(
+          replies.map(async (_, index) => {
+            const result = await runOneQualifier(text)
+            if (generation.current !== runId) return
+            replies[index] = result.reply
+            slots[index] = false
+            const mine = ++ticket
+            const graded = await gradeQualifier(text, replies.slice(), targetId)
+            if (generation.current !== runId || mine !== ticket) return
+            publish(graded, slots.slice())
+          }),
+        )
+      } finally {
+        if (generation.current === runId) setRunning(false)
+      }
+    })()
+
+    function publish(graded: AttemptState, pending: boolean[]) {
+      const stars = targetId === sampleModule.challenge.id ? graded.stars : undefined
+      setScores((current) => ({ ...current, [targetId]: progressRatio(graded) }))
+      setHistory((current) => {
+        const list = current[targetId] ?? []
+        return {
+          ...current,
+          [targetId]: list.map((item) =>
+            item.runId === runId ? { ...item, replies: graded.replies, pending, stars, graded } : item,
+          ),
+        }
+      })
+    }
   }
 
   return (
@@ -121,11 +213,10 @@ export function Challenge() {
               : `Challenge ${sampleModule.number}: ${activeChallenge.title}`}
           </h2>
         </div>
-        <div ref={thread} className="flex flex-1 flex-col gap-6 overflow-y-auto px-6 pt-10 pb-8">
+        <div className="shrink-0 px-6 pt-10">
           <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
           <p className="text-lg font-medium leading-8 text-foreground/85">{activeChallenge.summary}</p>
-          <form action={submit}>
-            <input type="hidden" name="target" value={target} />
+          <form onSubmit={submit}>
             <div className="flex items-end gap-2 rounded-[1.75rem] border border-border bg-secondary py-1.5 pr-2 pl-5 shadow-lg shadow-black/20">
               <label className="sr-only" htmlFor="instruction">
                 Your instruction
@@ -134,19 +225,17 @@ export function Challenge() {
                 id="instruction"
                 name="instruction"
                 rows={1}
-                required
                 placeholder={
-                  visible.length > 0
+                  attempts.length > 0
                     ? "Enter the prompt to try again"
                     : "Enter your prompt to attempt the challenge"
                 }
-                disabled={pending}
                 value={instruction}
                 onChange={(event) => setInstruction(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" || event.shiftKey) return
                   event.preventDefault()
-                  if (pending || instruction.trim() === "") return
+                  if (running || instruction.trim() === "") return
                   event.currentTarget.form?.requestSubmit()
                 }}
                 onInput={(event) => {
@@ -159,7 +248,7 @@ export function Challenge() {
               <button
                 type="submit"
                 aria-label="Send"
-                disabled={pending || instruction.trim() === ""}
+                disabled={running || instruction.trim() === ""}
                 className="mb-0.5 flex size-8 items-center justify-center rounded-full bg-foreground text-background disabled:opacity-40"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
@@ -169,58 +258,102 @@ export function Challenge() {
             </div>
           </form>
           </div>
-          {visible.length === 0 ? (
-            <p className="m-auto text-center text-base text-foreground/80">
-              Send a prompt to see a response
-            </p>
-          ) : (
-            visible.map((message, index) => (
-              <div
-                key={`${message.role}-${index}`}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                {message.role === "user" ? (
-                  <p className="max-w-[80%] rounded-3xl bg-secondary px-4 py-3 text-base leading-6">
-                    {message.text}
-                  </p>
-                ) : (
-                  <p className="max-w-[80%] px-1 py-1 text-base leading-6">{message.text}</p>
-                )}
-              </div>
-            ))
-          )}
-          {pending ? <p className="mx-auto w-full max-w-2xl text-base text-foreground/70">Thinking...</p> : null}
         </div>
-        {lesson ? (
-          <LessonGoals
-            criteria={activeChallenge.criteria.map((criterion) => ({
-              id: criterion.id,
-              label: criterionLabel(criterion),
-              passed: shown?.groups[0]?.criteria.find((entry) => entry.id === criterion.id)?.passed === true,
-            }))}
-          />
-        ) : (
-          <Goals
-            ratio={
-              sampleModule.challenge.stars.length === 0
-                ? 0
-                : (shown?.stars ?? 0) / sampleModule.challenge.stars.length
-            }
-            markers={sampleModule.challenge.stars.map((star) => ({
-              id: String(star.stars),
-              filled: (shown?.stars ?? 0) >= star.stars,
-              star: true,
-              checks: star.criteria.map((criterion) => ({
-                id: criterion.id,
-                passed:
-                  shown?.groups.find((group) => group.id === String(star.stars))?.criteria.find(
-                    (entry) => entry.id === criterion.id,
-                  )?.passed === true,
-                label: criterionLabel(criterion),
-              })),
-            }))}
-          />
-        )}
+        <div className="mt-8 flex min-h-0 flex-1 flex-col">
+          {current ? (
+            <div ref={attemptRow} className="attempt-row relative z-10 flex w-full flex-nowrap items-end gap-1 overflow-x-auto" style={{ scrollbarWidth: "none", paddingRight: 48, paddingLeft: cursorIndex === 0 ? 0 : 24 }}>
+              {attempts.map((item, index) => {
+                const selected = index === cursorIndex
+                const passed = attemptCleared(item)
+                const atLeftEdge = selected && index === 0
+                return (
+                  <button
+                    key={item.runId}
+                    type="button"
+                    data-selected={selected ? "true" : "false"}
+                    aria-pressed={selected}
+                    onClick={() => setCursor((items) => ({ ...items, [target]: index }))}
+                    className={`inline-flex shrink-0 items-center gap-1.5 py-1.5 font-[family-name:var(--font-montserrat)] text-[13px] font-bold tracking-wide whitespace-nowrap uppercase ${
+                      atLeftEdge ? "relative -mb-px rounded-tl-2xl rounded-tr-xl pr-3 pl-6 text-foreground" : selected ? "relative -mb-px rounded-t-xl px-3 text-foreground" : "px-3 text-foreground/40"
+                    }`}
+                    style={selected ? { background: "#181d28" } : undefined}
+                  >
+                    Attempt {index + 1}
+                    {passed ? <PassedMark /> : null}
+                    {selected && !atLeftEdge ? (
+                      <span aria-hidden className="pointer-events-none absolute bottom-0" style={{ left: -28, width: 28, height: 28, background: "radial-gradient(circle at 0 0, transparent 26px, #181d28 28px)" }} />
+                    ) : null}
+                    {selected ? (
+                      <span aria-hidden className="pointer-events-none absolute bottom-0" style={{ right: -28, width: 28, height: 28, background: "radial-gradient(circle at 100% 0, transparent 26px, #181d28 28px)" }} />
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
+          <div
+            className={`flex min-h-0 flex-1 flex-col ${current && cursorIndex === 0 ? "rounded-tr-2xl" : "rounded-t-2xl"}`}
+            style={{ background: "#181d28" }}
+          >
+            <div ref={thread} className={`min-h-0 flex-1 overflow-y-auto px-6 pt-5 ${current ? "" : "flex"}`}>
+              {current ? (
+                <div className="relative z-10 mx-auto w-full max-w-2xl">
+                  <div className="flex flex-col items-end gap-1">
+                    <p className="px-1 font-[family-name:var(--font-montserrat)] text-xs font-bold tracking-wide uppercase">
+                      You
+                    </p>
+                    <p className="max-w-[80%] rounded-3xl bg-secondary px-4 py-3 text-base font-semibold leading-6">
+                      {current.prompt}
+                    </p>
+                  </div>
+                  <div className="mt-4">
+                    <AgentReply
+                      key={current.runId}
+                      replies={current.replies}
+                      pending={current.pending}
+                      stars={current.stars}
+                      starTotal={sampleModule.challenge.stars.length}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="m-auto text-center text-base text-foreground/80">
+                  Send a prompt to see a response
+                </p>
+              )}
+            </div>
+            {lesson ? (
+              <LessonGoals
+                criteria={activeChallenge.criteria.map((criterion) => ({
+                  id: criterion.id,
+                  label: criterionLabel(criterion),
+                  passed: shown?.groups[0]?.criteria.find((entry) => entry.id === criterion.id)?.passed === true,
+                }))}
+              />
+            ) : (
+              <Goals
+                ratio={
+                  sampleModule.challenge.stars.length === 0
+                    ? 0
+                    : (shown?.stars ?? 0) / sampleModule.challenge.stars.length
+                }
+                markers={sampleModule.challenge.stars.map((star) => ({
+                  id: String(star.stars),
+                  filled: (shown?.stars ?? 0) >= star.stars,
+                  star: true,
+                  checks: star.criteria.map((criterion) => ({
+                    id: criterion.id,
+                    passed:
+                      shown?.groups.find((group) => group.id === String(star.stars))?.criteria.find(
+                        (entry) => entry.id === criterion.id,
+                      )?.passed === true,
+                    label: criterionLabel(criterion),
+                  })),
+                }))}
+              />
+            )}
+          </div>
+        </div>
       </section>
     </>
   )
@@ -323,46 +456,206 @@ function LessonGoals({ criteria }: { criteria: { id: string; label: string; pass
   const total = criteria.length
   const fill = total === 0 ? 0 : done / total
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-2 px-6 py-4" role="status">
-      <p className="font-[family-name:var(--font-montserrat)] text-xs font-bold tracking-wide uppercase">
-        Goals
-      </p>
-      <ul className="flex flex-wrap gap-1.5">
-        {criteria.map((criterion) => (
-          <li
-            key={criterion.id}
-              className={`rounded-full border px-2 py-0.5 text-xs leading-4 transition-colors duration-200 ease-out motion-reduce:transition-none ${
-              criterion.passed
-                ? "border-foreground bg-foreground/15 text-foreground"
-                : "border-foreground/25 text-foreground/55"
-            }`}
-          >
-            {criterion.label}
-          </li>
-        ))}
-      </ul>
-      <p className="text-sm text-foreground/80">
-        {done} of {total}
-      </p>
-      <div>
-        <div className="relative h-4 overflow-hidden rounded-[4px] bg-secondary">
-          <div
-            className="h-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none"
-            style={{ width: `${fill * 100}%` }}
-          />
-          {criteria.map((criterion, index) => (
-            <span
+    <div className="w-full px-6 py-4" role="status">
+      <div className="mb-3 flex flex-nowrap items-center justify-center gap-3">
+        <ul className="flex shrink-0 flex-nowrap gap-1.5">
+          {criteria.map((criterion) => (
+            <li
               key={criterion.id}
-              className={`absolute top-0 h-full w-0.5 ${index < total - 1 ? "-translate-x-1/2" : ""}`}
-              style={{
-                left: index === total - 1 ? "calc(100% - 2px)" : `${markerSlot(index, total)}%`,
-                backgroundColor: index < done ? "#eeffff" : "#546e7a",
-              }}
-            />
+              className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs leading-4 transition-colors duration-200 ease-out motion-reduce:transition-none ${
+                criterion.passed
+                  ? "border-foreground bg-foreground/15 text-foreground"
+                  : "border-foreground/25 text-foreground/55"
+              }`}
+            >
+              <RingIcon filled={criterion.passed} />
+              {criterion.label}
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
+      <div className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <GoalTrack
+          ratio={fill}
+          marks={criteria.map((criterion, index) => ({
+            id: criterion.id,
+            filled: index < done,
+            node: <RingIcon filled={index < done} plate size={26} />,
+          }))}
+        />
+      </div>
+      <ScoreMark done={done} total={total} />
+      </div>
+      <p className="mt-3 text-center text-sm font-medium text-foreground/70">
+        Collect each ring to complete the lesson challenge.
+      </p>
     </div>
+  )
+}
+
+function attemptCleared(item: AttemptRecord) {
+  if (!item.graded || item.pending.some(Boolean)) return false
+  if (item.graded.targetId === sampleModule.challenge.id) {
+    return item.graded.stars >= sampleModule.challenge.stars.length
+  }
+  return item.graded.outcome === "pass"
+}
+
+function PassedMark() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 14 14" aria-label="Passed" className="shrink-0 text-[#3dce8a]">
+      <path d="M2.5 7.2 5.4 10.2 11.5 3.8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function defaultRun(replies: string[], pending?: boolean[]) {
+  const finished = replies
+    .map((reply, index) => ({ reply, index }))
+    .filter((item) => pending?.[item.index] !== true)
+  if (finished.length === 0) return 0
+  const worst = finished.find((item) => item.reply.trim().toLowerCase() !== "ready")
+  return worst ? worst.index : finished[finished.length - 1].index
+}
+
+function AgentReply({
+  replies,
+  pending,
+  stars,
+  starTotal,
+}: {
+  replies: string[]
+  pending?: boolean[]
+  stars?: number
+  starTotal: number
+}) {
+  const multi = replies.length > 1
+  const signature = `${replies.join("\n")}|${pending?.map((slot) => (slot ? "1" : "0")).join("") ?? ""}`
+  const [index, setIndex] = useState(() => defaultRun(replies, pending))
+  useEffect(() => {
+    setIndex((current) => (pending?.[current] === true ? defaultRun(replies, pending) : current))
+  }, [signature])
+
+  const shown = Math.min(index, Math.max(replies.length - 1, 0))
+  const waiting = pending?.[shown] === true
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 px-1">
+        {multi ? (
+          replies.map((_, run) => {
+            const selected = run === shown
+            const slotWaiting = pending?.[run] === true
+            return (
+              <button
+                key={run}
+                type="button"
+                onClick={() => setIndex(run)}
+                className={`inline-flex items-center gap-1.5 font-[family-name:var(--font-montserrat)] text-xs font-bold tracking-wide uppercase ${
+                  selected ? "text-foreground" : "text-foreground/45"
+                }`}
+              >
+                Agent {run + 1}
+                {slotWaiting ? <Spinner /> : stars === undefined ? null : ` (${stars}/${starTotal})`}
+              </button>
+            )
+          })
+        ) : (
+          <p className="inline-flex items-center gap-1.5 font-[family-name:var(--font-montserrat)] text-xs font-bold tracking-wide uppercase">
+            Agent
+            {pending?.[0] ? <Spinner /> : null}
+          </p>
+        )}
+      </div>
+      {waiting ? (
+        <p className="px-1 py-1 text-base font-semibold text-foreground/70">Thinking...</p>
+      ) : (
+        <p className="max-w-[80%] px-1 py-1 text-base font-semibold leading-6">{replies[shown]}</p>
+      )}
+    </>
+  )
+}
+
+function Spinner() {
+  return (
+    <span
+      className="inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+      role="status"
+      aria-label="Running"
+    />
+  )
+}
+
+function ScoreMark({ done, total }: { done: number; total: number }) {
+  return (
+    <p className="shrink-0 text-base font-semibold leading-none tabular-nums">
+      {done}/{total}
+    </p>
+  )
+}
+
+function tickLeft(index: number, count: number) {
+  if (index === count - 1) return "calc(100% - 23px)"
+  return `${markerSlot(index, count)}%`
+}
+
+function GoalTrack({
+  ratio,
+  marks,
+}: {
+  ratio: number
+  marks: { id: string; filled: boolean; node: ReactNode }[]
+}) {
+  const complete = marks.length > 0 && ratio >= 1
+  return (
+    <div className="relative h-8">
+      <div className="absolute inset-x-0 top-1/2 h-[18px] -translate-y-1/2 overflow-hidden rounded-[4px] bg-secondary">
+        <div
+          className="h-full bg-foreground transition-[width] duration-300 ease-out motion-reduce:transition-none"
+          style={{ width: `${Math.min(1, Math.max(0, ratio)) * 100}%` }}
+        />
+      </div>
+      {marks.map((mark, index) => (
+        <div
+          key={mark.id}
+          className={`absolute top-1/2 z-10 -translate-y-1/2 ${index === marks.length - 1 ? "-translate-x-full" : "-translate-x-1/2"}`}
+          style={{ left: tickLeft(index, marks.length) }}
+        >
+          {mark.node}
+        </div>
+      ))}
+      <svg
+        width="11"
+        height="11"
+        viewBox="0 0 14 14"
+        aria-hidden="true"
+        className={`absolute top-1/2 right-[6px] z-10 -translate-y-1/2 transition-opacity duration-300 ease-out motion-reduce:transition-none ${
+          complete ? "text-background opacity-100" : "opacity-0"
+        }`}
+      >
+        <path d="M2.5 7.2 5.4 10.2 11.5 3.8" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  )
+}
+
+function RingIcon({ filled, plate = false, size = 18 }: { filled: boolean; plate?: boolean; size?: number }) {
+  if (plate) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 36 36" aria-hidden="true" className="shrink-0">
+        <circle cx="18" cy="18" r="16" fill="#202531" stroke={filled ? "#202531" : "#546e7a"} strokeWidth="1.5" />
+        {filled ? (
+          <circle cx="18" cy="18" r="11" fill="none" stroke="#eeffff" strokeWidth="6" />
+        ) : (
+          <circle cx="18" cy="18" r="9" fill="none" stroke="#546e7a" strokeWidth="1.5" />
+        )}
+      </svg>
+    )
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+      <circle cx="8" cy="8" r="5.25" fill="none" stroke="#eeffff" strokeWidth={filled ? 2.6 : 1.6} />
+    </svg>
   )
 }
 
@@ -386,42 +679,28 @@ function Goals({
 }) {
   const [open, setOpen] = useState<string | null>(null)
   return (
-    <div className="px-6 pt-10 pb-6" role="status">
-      <div className="flex items-center gap-2.5">
-      <p className="shrink-0 font-[family-name:var(--font-montserrat)] text-xs font-bold tracking-wide uppercase">Goals</p>
-      <div className="relative min-w-0 flex-1">
-        <div className="absolute inset-x-0 bottom-full mb-2 h-8">
-          {markers.map((marker, index) => {
-            const at = markerSlot(index, markers.length)
-            const shift = index === markers.length - 1 ? "-translate-x-full" : "-translate-x-1/2"
-            const align = index === 0 ? "left-0" : index === markers.length - 1 ? "right-0" : "left-1/2 -translate-x-1/2"
-            return (
-              <div
-                key={marker.id}
-                className={`absolute bottom-0 ${shift}`}
-                style={{ left: `${at}%` }}
-                onMouseLeave={() => setOpen(null)}
-              >
-                {marker.star ? (
-                  <button
-                    type="button"
-                    aria-label={`${index + 1} star`}
-                    aria-pressed={marker.filled}
-                    onClick={() => setOpen(open === marker.id ? null : marker.id)}
-                    onMouseEnter={() => setOpen(marker.id)}
-                    className="block rounded-full"
-                  >
-                    <StarIcon earned={marker.filled} />
-                  </button>
-                ) : (
-                  <span
-                    className={`block w-40 text-xs leading-4 ${marker.filled ? "text-foreground" : "text-foreground/55"} ${index === markers.length - 1 ? "text-right" : ""}`}
-                  >
-                    {marker.label}
-                  </span>
-                )}
+    <div className="w-full px-6 pt-8 pb-6" role="status">
+      <div className="flex w-full items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <GoalTrack
+          ratio={ratio}
+          marks={markers.map((marker, index) => ({
+            id: marker.id,
+            filled: marker.filled,
+            node: (
+              <div onMouseLeave={() => setOpen(null)}>
+                <button
+                  type="button"
+                  aria-label={`${index + 1} star`}
+                  aria-pressed={marker.filled}
+                  onClick={() => setOpen(open === marker.id ? null : marker.id)}
+                  onMouseEnter={() => setOpen(marker.id)}
+                  className="block rounded-full"
+                >
+                  <StarIcon earned={marker.filled} size={26} plate />
+                </button>
                 {open === marker.id && marker.checks ? (
-                  <div className={`absolute bottom-9 z-10 w-64 rounded-2xl border border-border bg-popover p-3 shadow-lg ${align}`}>
+                  <div className={`absolute bottom-8 z-20 w-64 rounded-2xl border border-border bg-popover p-3 shadow-lg ${index === 0 ? "left-0" : index === markers.length - 1 ? "right-0" : "left-1/2 -translate-x-1/2"}`}>
                     <ul className="flex flex-col gap-2">
                       {marker.checks.map((check, checkIndex) => (
                         <li key={check.id} className="flex items-center gap-2">
@@ -433,27 +712,18 @@ function Goals({
                   </div>
                 ) : null}
               </div>
-            )
-          })}
-        </div>
-        <div className="relative h-4 overflow-hidden rounded-[4px] bg-secondary">
-          <div
-            className="h-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none"
-            style={{ width: `${Math.min(1, Math.max(0, ratio)) * 100}%` }}
-          />
-          {markers.map((marker, index) => (
-            <span
-              key={marker.id}
-              className={`absolute top-0 h-full w-0.5 ${index < markers.length - 1 ? "-translate-x-1/2" : ""}`}
-              style={{
-                left: index === markers.length - 1 ? "calc(100% - 2px)" : `${markerSlot(index, markers.length)}%`,
-                backgroundColor: marker.filled ? "#eeffff" : "#546e7a",
-              }}
-            />
-          ))}
-        </div>
+            ),
+          }))}
+        />
       </div>
+      <ScoreMark
+        done={Math.round(Math.min(1, Math.max(0, ratio)) * markers.length)}
+        total={markers.length}
+      />
       </div>
+      <p className="mt-3 text-center text-sm font-medium text-foreground/70">
+        Collect all three stars to complete the challenge.
+      </p>
     </div>
   )
 }
@@ -497,11 +767,11 @@ function TimelineMark({
   )
 }
 
-function StarIcon({ earned }: { earned: boolean }) {
+function StarIcon({ earned, size = 22, plate = false }: { earned: boolean; size?: number; plate?: boolean }) {
   const color = earned ? "#eeffff" : "#546e7a"
   return (
-    <svg width="22" height="22" viewBox="0 0 36 36" aria-hidden="true">
-      <circle cx="18" cy="18" r="16" fill="none" stroke={color} strokeWidth="1.5" />
+    <svg width={size} height={size} viewBox="0 0 36 36" aria-hidden="true">
+      <circle cx="18" cy="18" r="16" fill={plate ? "#202531" : "none"} stroke={color} strokeWidth="1.5" />
       <path
         d="M18 9.5 20.2 15l5.8.5-4.4 3.8 1.4 5.7L18 22.2 13 25l1.4-5.7L10 15.5 15.8 15Z"
         fill={earned ? color : "none"}

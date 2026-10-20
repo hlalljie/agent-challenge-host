@@ -58,7 +58,7 @@ export async function evaluateGroup(input: {
     if (criterion.type === "streak") continue
     if (criterion.type === "repeat") {
       const replies = (input.replies ?? [input.reply]).slice(0, criterion.count)
-      const matched = replies.filter((reply) => reply.trim() === criterion.expected).length
+      const matched = replies.filter((reply) => sameText(reply, criterion.expected)).length
       const passed = replies.length === criterion.count && matched === criterion.count
       results.push({
         id: criterion.id,
@@ -156,7 +156,7 @@ async function evaluateOne(
     return { id: criterion.id, label, passed, detail: `${size} ${criterion.unit}` }
   }
   if (criterion.mode === "program") {
-    const passed = input.reply.trim() === (criterion.expected ?? "")
+    const passed = sameText(input.reply, criterion.expected ?? "")
     return {
       id: criterion.id,
       label,
@@ -169,6 +169,12 @@ async function evaluateOne(
   }
   const passed = await input.judge(criterion.prompt)
   return { id: criterion.id, label, passed, detail: passed ? "Passed" : "Failed" }
+}
+
+function sameText(actual: string, expected: string) {
+  const value = actual.trim()
+  if (expected.toLowerCase() === "ready") return value.toLowerCase() === "ready"
+  return value === expected
 }
 
 export function repeatCount(groups: CheckGroup[]): number {

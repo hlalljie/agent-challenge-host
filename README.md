@@ -1,6 +1,8 @@
 # Challenge host
 
-A site for agent challenges. A module teaches one skill. Each lesson explains one part of that skill and has one challenge that tests it. The module also has one challenge that puts the parts together.
+A site for practicing prompts for an agent. A module teaches one skill. Each lesson explains one part of that skill and has a subchallenge that tests it. The module also has one challenge that puts the parts together. Stars on that challenge show how far the prompt has gotten.
+
+![The Say ready challenge with the first star filled](docs/module-progress.png)
 
 **Status:** in development
 
@@ -11,7 +13,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` calls Gemini with `GEMINI_API_KEY` from `.env`. The live site reads that key from Secrets Manager. To grade locally without calling Gemini, start with `RUNNER=stub pnpm dev`.
+`pnpm dev` calls Gemini with `GEMINI_API_KEY` from `.env`. The live site reads that key from Secrets Manager. To grade locally without calling Gemini, run `pnpm dev:stub`.
 
 Then open http://localhost:3000.
 

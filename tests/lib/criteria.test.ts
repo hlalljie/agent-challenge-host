@@ -48,6 +48,22 @@ it("breaks a streak when this try misses the other checks", async () => {
   expect(evaluated.results.find((result) => result.id === "streak")?.passed).toBe(false)
 })
 
+it("matches ready in any case", async () => {
+  const evaluated = await evaluateGroup({
+    instruction: "Say READY",
+    reply: "Ready",
+    replies: ["Ready", "READY", "ready"],
+    criteria: [
+      { id: "has", type: "includes", text: "ready" },
+      exact,
+      { id: "repeat", type: "repeat", count: 3, expected: "ready" },
+    ],
+    priorNonStreakPasses: [],
+  })
+
+  expect(evaluated.results.every((result) => result.passed)).toBe(true)
+})
+
 it("passes a repeat only when every run matches", async () => {
   const passed = await evaluateGroup({
     instruction: "Say ready",

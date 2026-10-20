@@ -188,8 +188,13 @@ resource "aws_sfn_state_machine" "attempt" {
           }
         }
         ResultSelector = {
-          "reply.$"  = "$.Payload.reply"
-          "passed.$" = "$.Payload.passed"
+          "reply.$"     = "$.Payload.reply"
+          "replies.$"   = "$.Payload.replies"
+          "passed.$"    = "$.Payload.passed"
+          "stars.$"     = "$.Payload.stars"
+          "starsText.$" = "$.Payload.starsText"
+          "gatesJson.$" = "$.Payload.gatesJson"
+          "groups.$"    = "$.Payload.groups"
         }
         ResultPath = "$.grade"
         Next       = "Save"

@@ -21,6 +21,8 @@ const GEMINI_URL =
  * A missing key or a failed call is a fail and does not use the stub.
  * Local runs read `GEMINI_API_KEY`. The Lambda reads Secrets Manager.
  */
+const modelTries = 3
+
 export async function runAttempt(
   instruction: string,
 ): Promise<{ reply: string; passed: boolean }> {
@@ -33,6 +35,14 @@ export async function runAttempt(
     return failedAttempt()
   }
 
+  for (let attempt = 0; attempt < modelTries; attempt++) {
+    const reply = await geminiReply(instruction, key)
+    if (reply !== undefined) return { reply, passed: replyPasses(reply) }
+  }
+  return failedAttempt()
+}
+
+async function geminiReply(instruction: string, key: string): Promise<string | undefined> {
   try {
     const response = await fetch(GEMINI_URL, {
       method: "POST",
@@ -50,22 +60,16 @@ export async function runAttempt(
       signal: AbortSignal.timeout(25000),
     })
 
-    if (!response.ok) {
-      return failedAttempt()
-    }
+    if (!response.ok) return undefined
 
     const payload = (await response.json()) as {
       choices?: { message?: { content?: unknown } }[]
     }
     const content = payload.choices?.[0]?.message?.content
-    if (typeof content !== "string") {
-      return failedAttempt()
-    }
-
-    const reply = content.trim()
-    return { reply, passed: replyPasses(reply) }
+    if (typeof content !== "string") return undefined
+    return content.trim()
   } catch {
-    return failedAttempt()
+    return undefined
   }
 }
 

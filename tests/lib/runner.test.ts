@@ -77,7 +77,7 @@ it("sends the instruction to Gemini Flash-Lite", async () => {
   })
 })
 
-it("fails when Gemini returns HTTP 500 and does not use the stub", async () => {
+it("retries a failed Gemini call twice and then gives up", async () => {
   vi.stubEnv("GEMINI_API_KEY", "test-key")
   fetchMock.mockResolvedValue({
     ok: false,
@@ -88,6 +88,27 @@ it("fails when Gemini returns HTTP 500 and does not use the stub", async () => {
   const result = await runAttempt("Reply with exactly ready and nothing else.")
 
   expect(result).toEqual({ reply: "The model call failed.", passed: false })
+  expect(fetchMock).toHaveBeenCalledTimes(3)
+})
+
+it("uses a later Gemini call when an earlier one fails", async () => {
+  vi.stubEnv("GEMINI_API_KEY", "test-key")
+  fetchMock
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: "ready" } }] }),
+    })
+
+  const result = await runAttempt("hello")
+
+  expect(result).toEqual({ reply: "ready", passed: true })
+  expect(fetchMock).toHaveBeenCalledTimes(2)
 })
 
 it("reads the Gemini key from Secrets Manager when the Lambda has no local key", async () => {

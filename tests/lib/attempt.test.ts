@@ -32,7 +32,7 @@ it("grades locally when no workflow is configured", async () => {
     targetId: "missing",
   })
 
-  expect(result).toEqual({ reply: "local", passed: false, stars: 0, groups: [] })
+  expect(result).toEqual({ reply: "local", replies: ["local"], passed: false, stars: 0, groups: [] })
   expect(send).not.toHaveBeenCalled()
 })
 
@@ -50,7 +50,7 @@ it("returns the workflow output", async () => {
     targetId: "missing",
   })
 
-  expect(result).toEqual({ reply: "ready", passed: true, stars: 0, groups: [] })
+  expect(result).toEqual({ reply: "ready", replies: [], passed: true, stars: 0, groups: [] })
   expect(send).toHaveBeenCalledOnce()
 })
 
@@ -67,6 +67,7 @@ it("fails when the workflow does not succeed", async () => {
 
   expect(result).toEqual({
     reply: "The model call failed.",
+    replies: [],
     passed: false,
     stars: 0,
     groups: [],

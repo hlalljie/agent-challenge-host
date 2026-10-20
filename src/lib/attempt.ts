@@ -3,8 +3,6 @@ import { groupsFor, starsFrom } from "./challenge"
 import { gradeGroups, repeatCount, type CheckGroup, type CriterionResult } from "./criteria"
 import { runAttempt } from "./runner"
 
-const localHistory = new Map<string, boolean[]>()
-
 export type GroupResult = {
   id: string
   passed: boolean
@@ -13,6 +11,7 @@ export type GroupResult = {
 
 export type TrackedResult = {
   reply: string
+  replies: string[]
   passed: boolean
   stars: number
   groups: GroupResult[]
@@ -46,17 +45,22 @@ export async function runTrackedAttempt(input: {
     }),
   )
   if (started.status !== "SUCCEEDED" || !started.output) {
-    return { reply: "The model call failed.", passed: false, stars: 0, groups: [] }
+    return { reply: "The model call failed.", replies: [], passed: false, stars: 0, groups: [] }
   }
 
   const output = JSON.parse(started.output) as {
     reply?: unknown
+    replies?: unknown
     passed?: unknown
     stars?: unknown
     groups?: GroupResult[]
   }
+  const replies = Array.isArray(output.replies)
+    ? output.replies.filter((reply): reply is string => typeof reply === "string")
+    : []
   return {
     reply: typeof output.reply === "string" ? output.reply : "The model call failed.",
+    replies,
     passed: output.passed === true,
     stars: typeof output.stars === "number" ? output.stars : 0,
     groups: Array.isArray(output.groups) ? output.groups : [],
@@ -70,27 +74,33 @@ async function gradeLocally(
   const runs = await Promise.all(
     Array.from({ length: repeatCount(groups) }, () => runAttempt(input.instruction)),
   )
-  const replies = runs.map((run) => run.reply)
-  const history: Record<string, boolean[]> = {}
-  for (const group of groups) {
-    history[group.id] = localHistory.get(`${input.sessionId}:${input.targetId}:${group.id}`) ?? []
-  }
+  return gradeReplies({
+    instruction: input.instruction,
+    replies: runs.map((run) => run.reply),
+    targetId: input.targetId,
+  })
+}
+
+export async function gradeReplies(input: {
+  instruction: string
+  replies: string[]
+  targetId: string
+}): Promise<TrackedResult> {
+  const groups = groupsFor(input.targetId)
+  const replies = input.replies
   const graded = await gradeGroups({
     instruction: input.instruction,
     reply: replies[0] ?? "",
     replies,
     groups,
-    history,
+    history: {},
   })
-  for (const [id, passed] of Object.entries(graded.gates)) {
-    const key = `${input.sessionId}:${input.targetId}:${id}`
-    localHistory.set(key, [passed, ...(history[id] ?? [])])
-  }
   const judged: GroupResult[] = graded.groups
   const stars = starsFrom(judged)
   const lesson = groups.length === 1 && !Number.isInteger(Number(groups[0]?.id))
   return {
     reply: replies[0] ?? "",
+    replies,
     passed: lesson ? judged[0]?.passed === true : stars >= 1,
     stars,
     groups: judged,
