@@ -25,21 +25,21 @@ pnpm exec vitest run tests/lib/runner.test.ts
 
 ## Procedure
 
-1. Open `http://localhost:3000` before running an attempt. Confirm the left side lists Challenge 1: Say Ready in a Single Shot Prompt, Lesson 1 Exact Reply, Lesson 2 Nothing Else, and Lesson 3 Keep It Short.
-2. Type `hello` into Your instruction and run the attempt. Confirm 1 star stays unfilled and the reply is not `ready`.
-3. Open Lesson 1 Exact Reply, replace the instruction with `Reply with exactly ready and nothing else.`, and run the attempt. Confirm the Reply is only ready check says Pass and the reply is `ready`.
+1. Open `http://localhost:3000` before running an attempt. Confirm the left side lists Challenge 1: Say Hello World in a Single Shot Prompt, Lesson 1 Exact Reply, Lesson 2 Nothing Else, and Lesson 3 Keep It Short.
+2. Type `hello` into Your instruction and run the attempt. Confirm 1 star stays unfilled and the reply is not `hello world`.
+3. Open Lesson 1 Exact Reply, replace the instruction with `Reply with exactly hello world and nothing else.`, and run the attempt. Confirm the Reply is only hello world check says Pass and the reply is `hello world`.
 
 ## Pass criteria
 
 - The lessons are listed before any attempt.
 - A loose instruction does not earn a star.
-- An instruction that demands exactly `ready` passes the exact-reply lesson.
+- An instruction that demands exactly `hello world` passes the exact-reply lesson.
 
 ## Fail criteria
 
 - The lessons are missing on a fresh load.
 - `hello` earns a star.
-- The exact instruction fails the Reply is only ready check.
+- The exact instruction fails the Reply is only hello world check.
 
 ## Related
 

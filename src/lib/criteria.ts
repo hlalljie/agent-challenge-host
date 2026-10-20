@@ -173,7 +173,7 @@ async function evaluateOne(
 
 function sameText(actual: string, expected: string) {
   const value = actual.trim()
-  if (expected.toLowerCase() === "ready") return value.toLowerCase() === "ready"
+  if (expected.toLowerCase() === "hello world") return value.toLowerCase() === "hello world"
   return value === expected
 }
 

@@ -5,10 +5,10 @@ import type { Criterion } from "../../src/lib/criteria"
 const exact: Criterion = {
   id: "exact",
   type: "verifier",
-  title: "Reply is only ready",
+  title: "Reply is only hello world",
   mode: "program",
-  prompt: "only ready",
-  expected: "ready",
+  prompt: "only hello world",
+  expected: "hello world",
 }
 
 it("checks phrases in the instruction and a word limit", async () => {
@@ -28,8 +28,8 @@ it("checks phrases in the instruction and a word limit", async () => {
 
 it("counts a streak from earlier passes", async () => {
   const evaluated = await evaluateGroup({
-    instruction: "Reply with exactly ready",
-    reply: "ready",
+    instruction: "Reply with exactly hello world",
+    reply: "hello world",
     criteria: [exact, { id: "streak", type: "streak", count: 3 }],
     priorNonStreakPasses: [true, true],
   })
@@ -48,15 +48,15 @@ it("breaks a streak when this try misses the other checks", async () => {
   expect(evaluated.results.find((result) => result.id === "streak")?.passed).toBe(false)
 })
 
-it("matches ready in any case", async () => {
+it("matches hello world in any case", async () => {
   const evaluated = await evaluateGroup({
-    instruction: "Say READY",
-    reply: "Ready",
-    replies: ["Ready", "READY", "ready"],
+    instruction: "Say HELLO WORLD",
+    reply: "Hello World",
+    replies: ["Hello World", "HELLO WORLD", "hello world"],
     criteria: [
-      { id: "has", type: "includes", text: "ready" },
+      { id: "has", type: "includes", text: "hello world" },
       exact,
-      { id: "repeat", type: "repeat", count: 3, expected: "ready" },
+      { id: "repeat", type: "repeat", count: 3, expected: "hello world" },
     ],
     priorNonStreakPasses: [],
   })

@@ -1,18 +1,18 @@
 import type { CheckGroup, Criterion } from "@/lib/criteria"
 
-const exactReady: Criterion = {
-  id: "exact-ready",
+const exactHello: Criterion = {
+  id: "exact-hello-world",
   type: "verifier",
-  title: "Reply is only ready",
+  title: "Reply is only hello world",
   mode: "program",
-  prompt: "The reply is the word ready and nothing else.",
-  expected: "ready",
+  prompt: "The reply is hello world and nothing else.",
+  expected: "hello world",
 }
 
-const namesReady: Criterion = {
-  id: "names-ready",
+const namesHello: Criterion = {
+  id: "names-hello-world",
   type: "includes",
-  text: "ready",
+  text: "hello world",
 }
 
 const shortInstruction: Criterion = {
@@ -22,11 +22,11 @@ const shortInstruction: Criterion = {
   max: 12,
 }
 
-const repeatReady: Criterion = {
-  id: "repeat-ready",
+const repeatHello: Criterion = {
+  id: "repeat-hello-world",
   type: "repeat",
   count: 3,
-  expected: "ready",
+  expected: "hello world",
 }
 
 export type StarLevel = {
@@ -71,34 +71,34 @@ export const sampleModule: Module = {
     "A single shot prompt is a prompt without a conversation that accomplishes a task. Accomplishing tasks with a single shot is a great way to look at the fundamental skills behind prompt engineering. Creating a good single prompt comes down to including all the necessary context, making a precise ask, while leaving no ambiguity.",
   hint: "If you're feeling confident, try the challenge. Otherwise try out the subchallenges in each lesson to learn the building blocks.",
   challenge: {
-    id: "ready",
-    navTitle: "Challenge 1: Say Ready in a Single Shot Prompt",
+    id: "hello-world",
+    navTitle: "Challenge 1: Say Hello World in a Single Shot Prompt",
     navDetail: "Put everything together to complete the challenge",
-    title: "Say ready",
-    summary: 'Prompt the agent to get a response that says "ready" and nothing else.',
+    title: "Say hello world",
+    summary: 'Prompt the agent to get a response that says "hello world" and nothing else.',
     detail:
       "To complete this challenge you will need to prompt the agent to get an exact reply while also being very concise in your own explanation.",
-    criteria: [namesReady, exactReady, repeatReady, shortInstruction],
+    criteria: [namesHello, exactHello, repeatHello, shortInstruction],
     stars: [
-      { stars: 1, criteria: [namesReady] },
-      { stars: 2, criteria: [exactReady] },
-      { stars: 3, criteria: [repeatReady, shortInstruction] },
+      { stars: 1, criteria: [namesHello] },
+      { stars: 2, criteria: [exactHello] },
+      { stars: 3, criteria: [repeatHello, shortInstruction] },
     ],
   },
   lessons: [
     {
       number: 1,
       title: "Exact Reply",
-      summary: "The reply is only the word ready.",
+      summary: "The reply is only hello world.",
       body: [
         "A single shot is one instruction and one reply. There is no second turn.",
-        "Name the exact reply. For this qualifier, that reply is the word ready.",
+        "Name the exact reply. For this qualifier, that reply is hello world.",
       ],
       challenge: {
         id: "exact",
-        title: "Say ready",
-        summary: "One instruction. The reply has to be only the word ready.",
-        criteria: [exactReady],
+        title: "Say hello world",
+        summary: "One instruction. The reply has to be only hello world.",
+        criteria: [exactHello],
       },
     },
     {
@@ -111,24 +111,24 @@ export const sampleModule: Module = {
       ],
       challenge: {
         id: "nothing-else",
-        title: "Say ready",
-        summary: "One instruction. Ask for ready, and say that the reply should add nothing else.",
-        criteria: [exactReady],
+        title: "Say hello world",
+        summary: "One instruction. Ask for hello world, and say that the reply should add nothing else.",
+        criteria: [exactHello],
       },
     },
     {
       number: 3,
       title: "Keep It Short",
-      summary: "The instruction names ready and stays under 12 words.",
+      summary: "The instruction names hello world and stays under 12 words.",
       body: [
         "A shorter instruction is easier to repeat and harder to hide extra demands in.",
-        "Name ready, and keep the whole instruction under 12 words.",
+        "Name hello world, and keep the whole instruction under 12 words.",
       ],
       challenge: {
         id: "short",
-        title: "Say ready",
-        summary: "One short instruction that names ready.",
-        criteria: [namesReady, shortInstruction],
+        title: "Say hello world",
+        summary: "One short instruction that names hello world.",
+        criteria: [namesHello, shortInstruction],
       },
     },
   ],

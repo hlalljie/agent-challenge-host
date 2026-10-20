@@ -2,7 +2,7 @@
 
 A platform for learning to work with agents and to prompt engineer, built on a serverless AWS backend. Step Functions run each graded attempt.
 
-![The Say ready challenge completed with all three stars](docs/module-progress.png)
+![The Say hello world challenge completed with all three stars](docs/module-progress.png)
 
 **Status:** in development
 

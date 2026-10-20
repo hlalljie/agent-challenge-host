@@ -25,12 +25,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it("passes a stub instruction that demands exactly ready", async () => {
+it("passes a stub instruction that demands exactly hello world", async () => {
   vi.stubEnv("RUNNER", "stub")
 
-  const result = await runAttempt("Reply with exactly ready and nothing else.")
+  const result = await runAttempt("Reply with exactly hello world and nothing else.")
 
-  expect(result).toEqual({ reply: "ready", passed: true })
+  expect(result).toEqual({ reply: "hello world", passed: true })
   expect(fetchMock).not.toHaveBeenCalled()
 })
 
@@ -40,12 +40,12 @@ it("fails a loose stub instruction without calling fetch", async () => {
   const result = await runAttempt("hello")
 
   expect(result.passed).toBe(false)
-  expect(result.reply).not.toBe("ready")
+  expect(result.reply).not.toBe("hello world")
   expect(fetchMock).not.toHaveBeenCalled()
 })
 
 it("fails when the Gemini key is missing and does not call the model", async () => {
-  const result = await runAttempt("Reply with exactly ready and nothing else.")
+  const result = await runAttempt("Reply with exactly hello world and nothing else.")
 
   expect(result).toEqual({ reply: "The model call failed.", passed: false })
   expect(fetchMock).not.toHaveBeenCalled()
@@ -56,12 +56,12 @@ it("sends the instruction to Gemini Flash-Lite", async () => {
   fetchMock.mockResolvedValue({
     ok: true,
     status: 200,
-    json: async () => ({ choices: [{ message: { content: "ready" } }] }),
+    json: async () => ({ choices: [{ message: { content: "hello world" } }] }),
   })
 
   const result = await runAttempt("hello")
 
-  expect(result).toEqual({ reply: "ready", passed: true })
+  expect(result).toEqual({ reply: "hello world", passed: true })
   expect(fetchMock).toHaveBeenCalledOnce()
   const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
   expect(url).toBe(
@@ -82,10 +82,10 @@ it("retries a failed Gemini call twice and then gives up", async () => {
   fetchMock.mockResolvedValue({
     ok: false,
     status: 500,
-    json: async () => ({ choices: [{ message: { content: "ready" } }] }),
+    json: async () => ({ choices: [{ message: { content: "hello world" } }] }),
   })
 
-  const result = await runAttempt("Reply with exactly ready and nothing else.")
+  const result = await runAttempt("Reply with exactly hello world and nothing else.")
 
   expect(result).toEqual({ reply: "The model call failed.", passed: false })
   expect(fetchMock).toHaveBeenCalledTimes(3)
@@ -102,12 +102,12 @@ it("uses a later Gemini call when an earlier one fails", async () => {
     .mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ choices: [{ message: { content: "ready" } }] }),
+      json: async () => ({ choices: [{ message: { content: "hello world" } }] }),
     })
 
   const result = await runAttempt("hello")
 
-  expect(result).toEqual({ reply: "ready", passed: true })
+  expect(result).toEqual({ reply: "hello world", passed: true })
   expect(fetchMock).toHaveBeenCalledTimes(2)
 })
 
@@ -117,7 +117,7 @@ it("reads the Gemini key from Secrets Manager when the Lambda has no local key",
   fetchMock.mockResolvedValue({
     ok: true,
     status: 200,
-    json: async () => ({ choices: [{ message: { content: "ready" } }] }),
+    json: async () => ({ choices: [{ message: { content: "hello world" } }] }),
   })
 
   const result = await runAttempt("hello")

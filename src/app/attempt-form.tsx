@@ -515,7 +515,7 @@ function defaultRun(replies: string[], pending?: boolean[]) {
     .map((reply, index) => ({ reply, index }))
     .filter((item) => pending?.[item.index] !== true)
   if (finished.length === 0) return 0
-  const worst = finished.find((item) => item.reply.trim().toLowerCase() !== "ready")
+  const worst = finished.find((item) => item.reply.trim().toLowerCase() !== "hello world")
   return worst ? worst.index : finished[finished.length - 1].index
 }
 

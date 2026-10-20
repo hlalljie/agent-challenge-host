@@ -105,13 +105,13 @@ export async function runStub(instruction: string): Promise<StubRun> {
 
 function replyFor(instruction: string): string {
   const text = instruction.toLowerCase()
-  const namesReady = /\bready\b/.test(text)
+  const namesHello = /\bhello world\b/.test(text)
   const asksForNothingElse =
     text.includes("exactly") ||
     text.includes("only") ||
     text.includes("nothing else")
 
-  if (namesReady && asksForNothingElse) return "ready"
-  if (namesReady) return "Sure, I am ready to help."
+  if (namesHello && asksForNothingElse) return "hello world"
+  if (namesHello) return "Sure, hello world."
   return "I can help with that. What would you like to do?"
 }
